@@ -1,10 +1,9 @@
 global.fetch = require('node-fetch');
 global.navigator = () => null;
-var request = require('request');
-var jwkToPem = require('jwk-to-pem');
-var jwt = require('jsonwebtoken');
 const config = require ('config');
-
+const request = require('request');
+const jwkToPem = require('jwk-to-pem');
+const jwt = require('jsonwebtoken');
 const AmazonCognitoIdentity = require('amazon-cognito-identity-js');
 
 const pool_region = config.get('PoolRegion');
@@ -72,12 +71,9 @@ exports.Register = function (body, callback) {
 };
 
 
-
 exports.Login = function (body, callback) {
     var userName = body.email;
     var password = body.password;
-
-    console.log (userName + password);
 
     var userData = {
         Username : userName,
@@ -105,50 +101,93 @@ exports.Login = function (body, callback) {
  };
 
 
-
 exports.Validate = function(token, callback){
-    request(
-        {
-            url : `https://cognito-idp.${pool_region}.amazonaws.com/${poolData.UserPoolId}/.well-known/jwks.json`,
-            json : true
-        }, function(error, response, body){
+    request({
+        url : `https://cognito-idp.${pool_region}`
+                    +`.amazonaws.com/${poolData.UserPoolId}/`
+                    +`.well-known/jwks.json`,
+        json : true
+    }, function(error, response, body) {
         if (!error && response.statusCode === 200) {
             pems = {};
             var keys = body['keys'];
             for(var i = 0; i < keys.length; i++) {
-                 var key_id = keys[i].kid;
-                 var modulus = keys[i].n;
-                 var exponent = keys[i].e;
-                 var key_type = keys[i].kty;
-                 var jwk = { kty: key_type, n: modulus, e: exponent};
-                 var pem = jwkToPem(jwk);
-                 pems[key_id] = pem;
+                var key_id = keys[i].kid;
+                var modulus = keys[i].n;
+                var exponent = keys[i].e;
+                var key_type = keys[i].kty;
+                var jwk = { kty: key_type, n: modulus, e: exponent};
+                var pem = jwkToPem(jwk);
+                pems[key_id] = pem;
             }
-         var decodedJwt = jwt.decode(token, {complete: true});
-                 if (!decodedJwt) {
-                     console.log("Not a valid JWT token");
-                     callback(new Error('Not a valid JWT token'));
-                 }
-                 var kid = decodedJwt.header.kid;
-                 var pem = pems[kid];
-                 if (!pem) {
-                     console.log('Invalid token');
-                     callback(new Error('Invalid token'));
-                 }
-                jwt.verify(token, pem, function(err, payload) {
-                     if(err) {
-                         console.log("Invalid Token.");
-                         callback(new Error('Invalid token'));
-                     } else {
-                          console.log("Valid Token.");
-                          callback(null, "Valid token");
-                     }
-                });
+            
+            var decodedJwt = jwt.decode(token, {complete: true});
+            if (!decodedJwt) {
+                console.log("Not a valid JWT token");
+                callback(new Error('Not a valid JWT token'));
+            }
+            
+            var kid = decodedJwt.header.kid;
+            var pem = pems[kid];
+            if (!pem) {
+                console.log('Invalid token');
+                callback(new Error('Invalid token'));
+            }
+            
+            jwt.verify(token, pem, function(err, payload) {
+                if(err) {
+                    console.log("Invalid Token.");
+                    callback(new Error('Invalid token'));
+                } else {
+                    console.log("Valid Token.");
+                    callback(null, "Valid token");
+                }
+            });
         } else {
-              console.log("Error! Unable to download JWKs");
-              callback(error);
+            console.log("Error! Unable to download JWKs");
+            callback(error);
         }
     });
  };
 
 
+ exports.Profile = function (body, callback) {
+    // The user should be logged-in, so get user info from the userpool
+    var cognitoUser = userPool.getCurrentUser();
+    if (cognitoUser != null) {
+        cognitoUser.getSession(function(err, session) {
+            if (err) {
+                alert(err);
+                return;
+            }
+            console.log('session validity: ' + session.isValid());
+			//Set the profile info
+			cognitoUser.getUserAttributes(function(err, result) {
+				if (err) {
+					console.log(err);
+					return;
+                }
+                console.log('Found user profile information');
+				console.log(result);
+				callback(null, result);
+			});			
+        });
+    } else {
+        console.log('Error! Unable to find user in the session');
+        callback(new Error());
+    }
+ };
+
+
+ exports.Logout = function (body, callback) {
+    // The user should be logged-in, so get user info from the userpool
+    var cognitoUser = userPool.getCurrentUser();
+    if (cognitoUser != null) {
+        cognitoUser.signOut();
+        console.log('User logged-out successfully');
+        callback(null);
+    } else {
+        console.log('Error! Unable to find user in the session');
+        callback(null);
+    }
+}
