@@ -46,3 +46,19 @@ exports.logout = function(req, res){
 };
 
 
+exports.forgotpassword = function(req, res){
+    let forgotpassword = authService.ForgotPassword(req.body,function(err, result){
+        if(err)
+            res.send(err.message);
+        res.send(result);
+    })
+};
+
+
+exports.changepassword = function(req, res){
+    let changepassword = authService.ChangePassword(req.body,function(err, result){
+        if(err)
+            res.send(err.message);
+        res.send(result);
+    })
+};

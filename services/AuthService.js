@@ -90,9 +90,18 @@ exports.Login = function (body, callback) {
     cognitoUser.authenticateUser(authenticationDetails, {
         onSuccess: function (result) {
             console.log ('User Login Successful');
+
+            // Access Token provides access to authorized resources
             var accesstoken = result.getAccessToken().getJwtToken();
-            callback(null, accesstoken);
-         },
+            //console.log(accesstoken);
+
+            // ID Token contains claims about the identity of the authenticated
+            //   user including default and user-defined attributes
+            var idtoken = result.getIdToken().getJwtToken();
+            //console.log(idtoken);
+
+            callback(null, idtoken);
+        },
         onFailure: (function (err) {
             console.log ('User Login Failed');
             callback(err);
@@ -169,12 +178,14 @@ exports.Validate = function(token, callback){
                 }
                 console.log('Found user profile information');
 				console.log(result);
-				callback(null, result);
+                callback(null, result);
+                return;
 			});			
         });
     } else {
         console.log('Error! Unable to find user in the session');
         callback(new Error());
+        return;
     }
  };
 
@@ -186,8 +197,81 @@ exports.Validate = function(token, callback){
         cognitoUser.signOut();
         console.log('User logged-out successfully');
         callback(null);
+        return;
     } else {
         console.log('Error! Unable to find user in the session');
         callback(null);
+        return;
+    }
+}
+
+
+exports.ForgotPassword = function (body, callback) {
+    var userData = {
+        Username : body.email,
+        Pool : userPool
+    }
+    var cognitoUser = new AmazonCognitoIdentity.CognitoUser(userData);
+    if (cognitoUser != null) {
+        console.log ('Amazon Login Successful');
+
+        cognitoUser.forgotPassword({
+            onSuccess: function (result) {
+                console.log('call result: ' + result);
+                callback(result);
+                return;
+            },
+            onFailure: function(err) {
+                callback(err);
+                return;
+            },
+            inputVerificationCode() {
+                var verificationCode;
+                //// Expect the verification code entered in the console
+                process.stdin.once('data', (chunk) => {
+                    verificationCode = chunk.toString().trim();
+                    var newPassword = body.newpassword;
+                    console.log('Verification Code is : ', verificationCode);
+                    cognitoUser.confirmPassword(verificationCode, newPassword, {
+                        onFailure(err) {
+                            console.log(err);
+                        },
+                        onSuccess() {
+                            console.log("Success");
+                        },
+                    });
+                });
+            }
+        });
+    } else {
+        console.log('Error! Unable to find user in the session');
+        callback(null);
+        return;
+    }
+}
+
+
+exports.ChangePassword = function (body, callback) {
+    var cognitoUser = userPool.getCurrentUser();
+    if (cognitoUser != null) {
+        cognitoUser.getSession(function(err, session) {
+            if (err) {
+                console.error(err);
+                return;
+            }
+        });
+        cognitoUser.changePassword(body.oldpassword, body.newpassword
+            , function(error) {
+            if (error) {
+                callback(error);
+                return;
+            }
+            console.log('User Password Updated');
+            callback(null);
+        });
+    } else {
+        console.log('Error! Unable to find user in the session');
+        callback(null);
+        return;
     }
 }
